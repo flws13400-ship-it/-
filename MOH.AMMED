@@ -1,0 +1,370 @@
+# -*- coding: utf-8 -*-
+"""
+نظام عبد الرحمن غالب لتعبئة YOU ويمن موبايل - الإصدار 2
+يعمل دون إنترنت باستخدام Tkinter وSQLite (مضمنتان مع Python).
+التشغيل: python abdulrahman_recharge_system_v2.py
+"""
+import sqlite3
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+from datetime import datetime
+from pathlib import Path
+
+DB = Path(__file__).with_name("abdulrahman_recharge_v4.db")
+COMPANIES = ("YOU", "يمن موبايل")
+BG, PANEL, DARK, ACCENT, GREEN, RED = "#101827", "#1b2940", "#243650", "#e6ad36", "#27ae78", "#e05b62"
+WHITE, MUTED = "#f4f7fb", "#aebbd0"
+
+# هذه أسماء ومزايا أمكن تمييزها من الفيديو. السعر 0 يعني أنه يحتاج تأكيداً
+# قبل البيع، لأن أرقام بعض اللقطات غير واضحة ولا يصح تخمين السعر.
+VIDEO_PACKAGES = [
+    ("YOU", "باقة السعر الموحد فورجي ماكس 12 جيجا (8+4)", 9874, "12 جيجا (8 + 4 من 2 ليلاً إلى 12 ظهراً)", "500 دقيقة داخل الشبكة + 100 دقيقة لكل الشبكات", "", "200 رسالة", "السعر من الصورة المرسلة"),
+    ("YOU", "باقة السعر الموحد فورجي 5 جيجا", 5445, "5 جيجا (بحسب الصورة)", "500 دقيقة داخل الشبكة + 100 دقيقة لكل الشبكات", "", "100 رسالة", "السعر من الصورة المرسلة"),
+    ("YOU", "سوا مكس 1200", 4901, "حسب العرض", "", "", "", "السعر من الصورة المرسلة"),
+    ("YOU", "فورجي 4 جيجا الشهرية", 0, "4 جيجا", "", "", "", "السعر يحتاج تأكيداً من المصدر"),
+    ("YOU", "سمارت فورجي الأسبوعية", 0, "حسب العرض", "", "", "", "الاسم ظاهر بالفيديو؛ راجع التفاصيل"),
+    ("YOU", "سمارت فورجي – 5 جيجا", 0, "5 جيجا", "", "", "", "السعر يحتاج تأكيداً من المصدر"),
+    ("يمن موبايل", "سوبر فورجي الشهرية", 0, "2 جيجا + 1 جيجا (بحسب ظهور اللقطة)", "غير واضح", "", "", "السعر والتفاصيل تحتاج مراجعة"),
+    ("يمن موبايل", "مزايا فورجي رسائل الجديدة", 0, "", "", "", "800 رسالة", "ظهر رقم 800 رسالة؛ السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا أعمال فورجي الشهرية", 0, "6 جيجا", "1500 دقيقة", "", "1000 رسالة", "المزايا كما أمكن قراءتها من الفيديو؛ السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا فورجي 24 ساعة", 0, "2 ميجا (بحسب اللقطة)", "20 دقيقة", "", "40 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا فورجي 48 ساعة", 0, "1 جيجا", "50 دقيقة", "", "100 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا فورجي الأسبوعية", 0, "2 جيجا", "", "", "300 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا فورجي الشهرية", 0, "4 جيجا", "300 دقيقة", "", "350 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا ماكس فورجي", 0, "4 جيجا", "1100 دقيقة", "", "600 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا توفير فورجي الشهرية", 0, "حسب العرض", "450 دقيقة", "", "450 رسالة", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت توفير فورجي 5 جيجا الشهرية", 0, "5 جيجا", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت توفير فورجي 7 جيجا", 0, "7 جيجا", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت فورجي 4 جيجا الشهرية", 0, "4 جيجا", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت فورجي 8 جيجا الشهرية", 0, "8 جيجا", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت فورجي 20 جيجا الشهرية", 0, "20 جيجا", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "باقة نت توفير 3G فورجي الأسبوعية", 0, "حسب العرض", "", "", "", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا تواصل فورجي الشهرية", 0, "", "600 دقيقة داخل الشبكة", "", "رسائل لكل الشبكات", "السعر يحتاج تأكيداً"),
+    ("يمن موبايل", "مزايا تواصل ماكس فورجي", 0, "", "1000 دقيقة داخل الشبكة", "", "رسائل لكل الشبكات", "السعر يحتاج تأكيداً"),
+    # أسعار باقات يمن موبايل المقروءة بوضوح من الفيديو الثاني
+    ("يمن موبايل", "باقة رسائل 800 رسالة", 1000, "", "", "", "800 رسالة", "السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "مزايا أعمال فورجي الشهرية 6 جيجا", 5000, "6 جيجا", "1500 دقيقة", "", "1000 رسالة", "30 يوم؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "مزايا فورجي 48 ساعة 1 جيجا", 600, "1 جيجا", "50 دقيقة", "", "100 رسالة", "48 ساعة؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "مزايا فورجي الأسبوعية 2 جيجا", 1500, "2 جيجا", "200 دقيقة", "", "300 رسالة", "7 أيام؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "نت توفير فورجي 5 جيجا الشهرية", 2300, "5 جيجا", "", "", "", "30 يوم؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "نت فورجي 20 جيجا الشهرية", 9700, "20 جيجا", "", "", "", "30 يوم؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "نت توفير 3G فورجي الأسبوعية", 1125, "1.5 جيجا", "", "", "", "7 أيام؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "مزايا تواصل فورجي الشهرية", 1500, "", "600 دقيقة داخل الشبكة", "", "600 رسالة لكل الشبكات", "30 يوم؛ السعر ظاهر بوضوح في الفيديو"),
+    ("يمن موبايل", "مزايا تواصل ماكس فورجي", 2000, "", "", "", "", "السعر ظاهر؛ بقية تفاصيل المزايا غير واضحة"),
+    # أسعار YOU الظاهرة في الفيديو الأول
+    ("YOU", "سمارت فورجي الأسبوعية نت فقط", 2251, "2 جيجا", "", "", "", "السعر ظاهر بوضوح في الفيديو"),
+    ("YOU", "باقة YOU سمارت فورجي 15 جيجا نت فقط", 12705, "15 جيجا", "", "", "", "السعر ظاهر بوضوح في الفيديو"),
+    ("YOU", "باقة السعر الموحد فورجي 4 جيجا الشهرية", 2904, "4 جيجا", "", "", "", "السعر ظاهر بوضوح في الفيديو"),
+    # إضافات الأسعار المستخرجة من لقطات الشاشة المرسلة
+    ("يمن موبايل", "باقة نت توفير 25G فورجي", 8830, "25 جيجا", "", "", "", "السعر ظاهر في الصورة"),
+    ("يمن موبايل", "باقة نت توفير 6G فورجي الشهرية", 2250, "6 جيجا", "", "", "", "30 يوم؛ السعر ظاهر في الصورة"),
+    ("يمن موبايل", "باقة نت توفير 11G فورجي", 4125, "11 جيجا", "", "", "", "السعر ظاهر في الصورة"),
+    ("يمن موبايل", "باقة نت فورجي 8 جيجا الشهرية", 3900, "8 جيجا", "", "", "", "30 يوم؛ السعر ظاهر في الصورة"),
+    ("يمن موبايل", "باقة نت فورجي 4 جيجا مسبق الدفع", 2000, "4 جيجا", "", "", "", "30 يوم؛ دفع مسبق؛ السعر ظاهر في الصورة"),
+    ("يمن موبايل", "باقة نت توفير فورجي 7 جيجا الشهرية", 3000, "7 جيجا", "", "", "", "30 يوم؛ السعر ظاهر في الصورة")
+]
+
+class App:
+    def __init__(self, root):
+        self.root = root
+        root.title("عبد الرحمن غالب | نظام إدارة تعبئة الباقات")
+        root.geometry("1220x790")
+        root.minsize(980, 650)
+        root.configure(bg=BG)
+        self.db = sqlite3.connect(DB)
+        self.db.row_factory = sqlite3.Row
+        self.init_db()
+        self.setup_style()
+        self.build()
+        self.refresh()
+
+    def init_db(self):
+        c = self.db.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        c.execute("""CREATE TABLE IF NOT EXISTS packages(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, company TEXT NOT NULL, name TEXT NOT NULL,
+            price REAL NOT NULL DEFAULT 0, data TEXT DEFAULT '', onnet TEXT DEFAULT '',
+            allnet TEXT DEFAULT '', sms TEXT DEFAULT '', notes TEXT DEFAULT '')""")
+        c.execute("""CREATE TABLE IF NOT EXISTS transactions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, company TEXT NOT NULL,
+            package_name TEXT NOT NULL, price REAL NOT NULL, customer_name TEXT NOT NULL,
+            phone TEXT NOT NULL, payment TEXT NOT NULL, notes TEXT DEFAULT '')""")
+        c.execute("CREATE TABLE IF NOT EXISTS deposits(id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, amount REAL NOT NULL, notes TEXT DEFAULT '')")
+        c.execute("INSERT OR IGNORE INTO settings VALUES('balance','0')")
+        count = c.execute("SELECT COUNT(*) FROM packages").fetchone()[0]
+        if count == 0:
+            c.executemany("""INSERT INTO packages(company,name,price,data,onnet,allnet,sms,notes)
+                VALUES(?,?,?,?,?,?,?,?)""", VIDEO_PACKAGES)
+        else:
+            # أضف الباقات الجديدة، وحدّث أسعار الباقات المطابقة التي ورد سعرها بوضوح.
+            for item in VIDEO_PACKAGES:
+                company, name, price, data, onnet, allnet, sms, notes = item
+                existing = c.execute(
+                    "SELECT id FROM packages WHERE company=? AND name=? ORDER BY id LIMIT 1",
+                    (company, name)
+                ).fetchone()
+                if existing:
+                    if float(price) > 0:
+                        c.execute("""UPDATE packages SET price=?, data=?, onnet=?, allnet=?, sms=?, notes=?
+                                     WHERE id=?""",
+                                  (price, data, onnet, allnet, sms, notes, existing["id"]))
+                else:
+                    c.execute("""INSERT INTO packages(company,name,price,data,onnet,allnet,sms,notes)
+                                 VALUES(?,?,?,?,?,?,?,?)""", item)
+        self.db.commit()
+
+    def setup_style(self):
+        s = ttk.Style()
+        try: s.theme_use("clam")
+        except tk.TclError: pass
+        s.configure(".", font=("Arial", 10))
+        s.configure("TFrame", background=BG)
+        s.configure("Panel.TFrame", background=PANEL)
+        s.configure("TLabel", background=BG, foreground=WHITE)
+        s.configure("Muted.TLabel", background=BG, foreground=MUTED)
+        s.configure("Title.TLabel", background=BG, foreground=WHITE, font=("Arial", 22, "bold"))
+        s.configure("Big.TLabel", background=PANEL, foreground=ACCENT, font=("Arial", 17, "bold"))
+        s.configure("TButton", padding=8, font=("Arial", 10, "bold"))
+        s.configure("Accent.TButton", background=ACCENT, foreground="#152033")
+        s.map("Accent.TButton", background=[("active", "#f2c45d")])
+        s.configure("Treeview", background="#f7f9fc", foreground="#172235", fieldbackground="#f7f9fc", rowheight=30)
+        s.configure("Treeview.Heading", font=("Arial", 10, "bold"), padding=7)
+        s.configure("TNotebook", background=BG, borderwidth=0)
+        s.configure("TNotebook.Tab", padding=(18, 10), font=("Arial", 10, "bold"))
+
+    def money(self, x):
+        return f"{float(x):,.0f} ريال"
+
+    def balance(self):
+        return float(self.db.execute("SELECT value FROM settings WHERE key='balance'").fetchone()[0])
+
+    def set_balance(self, value):
+        self.db.execute("UPDATE settings SET value=? WHERE key='balance'", (str(value),))
+
+    def label(self, parent, text, **kw):
+        return ttk.Label(parent, text=text, **kw)
+
+    def entry(self, parent, var=None, width=25):
+        return ttk.Entry(parent, textvariable=var, width=width, justify="right")
+
+    def build(self):
+        header = tk.Frame(self.root, bg="#17243a", padx=22, pady=16)
+        header.pack(fill="x")
+        tk.Label(header, text="عبد الرحمن غالب", bg="#17243a", fg=WHITE,
+                 font=("Arial", 25, "bold")).pack()
+        tk.Label(header, text="نظام احترافي لإدارة تعبئة باقات YOU ويمن موبايل",
+                 bg="#17243a", fg="#c8d5e8", font=("Arial", 12)).pack(pady=(4,0))
+        self.ticker_text = "︾︾︾︾   ♕ٱلمۘطوٰ٘ࢪ ٱلجٰنٚدي٘   ☬☬☤☬☬     "
+        self.ticker_pos = 0
+        self.ticker = tk.Label(header, text=self.ticker_text, bg="#17243a", fg=ACCENT, font=("Arial", 13, "bold"))
+        self.ticker.pack(pady=(8,0))
+        self.animate_ticker()
+        cards = tk.Frame(self.root, bg=BG, padx=18, pady=12)
+        cards.pack(fill="x")
+        self.balance_card = self.stat_card(cards, "الرصيد الأساسي المتبقي", "0 ريال", ACCENT)
+        self.sales_card = self.stat_card(cards, "إجمالي العمليات", "0", "#65b9ed")
+        self.debt_card = self.stat_card(cards, "عمليات الدين", "0", "#e78c8c")
+        self.tabs = ttk.Notebook(self.root)
+        self.tabs.pack(fill="both", expand=True, padx=16, pady=(0,15))
+        self.sale = ttk.Frame(self.tabs, padding=16)
+        self.catalog = ttk.Frame(self.tabs, padding=16)
+        self.records = ttk.Frame(self.tabs, padding=16)
+        self.tabs.add(self.sale, text="  بيع باقة  ")
+        self.tabs.add(self.catalog, text="  كتالوج الباقات  ")
+        self.tabs.add(self.records, text="  سجل العمليات  ")
+        self.build_sale()
+        self.build_catalog()
+        self.build_records()
+
+    def stat_card(self, parent, title, value, color):
+        f = tk.Frame(parent, bg=PANEL, padx=18, pady=10, highlightthickness=1, highlightbackground="#30435f")
+        f.pack(side="right", fill="x", expand=True, padx=5)
+        tk.Label(f, text=title, bg=PANEL, fg=MUTED, font=("Arial", 10)).pack(anchor="e")
+        v = tk.Label(f, text=value, bg=PANEL, fg=color, font=("Arial", 17, "bold"))
+        v.pack(anchor="e", pady=(4,0))
+        return v
+
+    def build_sale(self):
+        f = self.sale
+        self.label(f, "تسجيل عملية تعبئة جديدة", font=("Arial", 17, "bold")).grid(row=0,column=0,columnspan=4,sticky="e",pady=(0,15))
+        self.company = tk.StringVar(value=COMPANIES[0])
+        self.pkg = tk.StringVar()
+        self.customer = tk.StringVar()
+        self.phone = tk.StringVar()
+        self.payment = tk.StringVar(value="نقد")
+        self.notes = tk.StringVar()
+        self.company_box = ttk.Combobox(f, textvariable=self.company, values=COMPANIES, state="readonly", width=27)
+        self.field(f, "شركة الاتصالات", self.company_box, 1, 0)
+        self.company_box.bind("<<ComboboxSelected>>", lambda e: self.load_choices())
+        self.pkg_box = ttk.Combobox(f, textvariable=self.pkg, state="readonly", width=43)
+        self.field(f, "اختر الباقة", self.pkg_box, 1, 2)
+        self.pkg_box.bind("<<ComboboxSelected>>", lambda e: self.show_price())
+        self.price_lbl = self.label(f, "السعر: —", foreground=ACCENT, font=("Arial", 12, "bold"))
+        self.price_lbl.grid(row=3,column=2,sticky="e",padx=8,pady=9)
+        self.field(f, "اسم العميل الرباعي", self.entry(f,self.customer,30), 4, 0)
+        self.field(f, "رقم الهاتف (9 أرقام)", self.entry(f,self.phone,30), 4, 2)
+        pay_frame = ttk.Frame(f)
+        ttk.Radiobutton(pay_frame,text="نقد",variable=self.payment,value="نقد").pack(side="right",padx=10)
+        ttk.Radiobutton(pay_frame,text="دين",variable=self.payment,value="دين").pack(side="right",padx=10)
+        self.field(f, "طريقة الدفع", pay_frame, 7, 0)
+        self.field(f, "ملاحظات", self.entry(f,self.notes,43), 7, 2)
+        ttk.Button(f,text="تأكيد العملية وحفظها في السجل",style="Accent.TButton",command=self.confirm).grid(row=10,column=2,sticky="e",padx=8,pady=22)
+        ttk.Button(f,text="إضافة / تعديل الرصيد الأساسي",command=self.change_balance).grid(row=10,column=0,sticky="w",padx=8,pady=22)
+        self.hint = self.label(f,"اختر الشركة أولاً؛ لن تظهر إلا باقات الشركة المحددة.",style="Muted.TLabel")
+        self.hint.grid(row=12,column=0,columnspan=4,sticky="e",pady=10)
+        for col in range(4): f.columnconfigure(col,weight=1)
+
+    def field(self, parent, title, widget, row, col):
+        self.label(parent,title).grid(row=row,column=col,sticky="e",padx=8,pady=(8,2))
+        widget.grid(row=row+1,column=col,sticky="ew",padx=8,pady=(2,8))
+
+    def build_catalog(self):
+        f=self.catalog
+        top=ttk.Frame(f); top.pack(fill="x",pady=(0,10))
+        self.filter_company=tk.StringVar(value="الكل")
+        ttk.Label(top,text="عرض الشركة").pack(side="right",padx=5)
+        cb=ttk.Combobox(top,textvariable=self.filter_company,values=("الكل",)+COMPANIES,state="readonly",width=18)
+        cb.pack(side="right",padx=5); cb.bind("<<ComboboxSelected>>",lambda e:self.refresh_catalog())
+        ttk.Button(top,text="إضافة باقة جديدة",style="Accent.TButton",command=self.package_dialog).pack(side="left",padx=4)
+        ttk.Button(top,text="تعديل المحددة",command=self.edit_package).pack(side="left",padx=4)
+        ttk.Button(top,text="حذف المحددة",command=self.delete_package).pack(side="left",padx=4)
+        self.cat_tree=ttk.Treeview(f,columns=("company","name","price","data","minutes","sms","notes"),show="headings")
+        cols=[("company","الشركة",95),("name","اسم الباقة",210),("price","السعر",100),("data","الإنترنت",110),("minutes","الدقائق",150),("sms","الرسائل",90),("notes","ملاحظات",230)]
+        for c,t,w in cols:self.cat_tree.heading(c,text=t);self.cat_tree.column(c,width=w,anchor="center")
+        self.cat_tree.pack(fill="both",expand=True)
+
+    def build_records(self):
+        f=self.records
+        bar=ttk.Frame(f);bar.pack(fill="x",pady=(0,10))
+        ttk.Button(bar,text="تحديث السجل",command=self.refresh_records).pack(side="right",padx=4)
+        ttk.Button(bar,text="حذف العملية المحددة",command=self.delete_record).pack(side="right",padx=4)
+        ttk.Button(bar,text="＋ إيداع أموال",style="Accent.TButton",command=self.add_deposit).pack(side="right",padx=4)
+        ttk.Label(bar,text="حذف عملية يعيد قيمتها إلى الرصيد الأساسي.",style="Muted.TLabel").pack(side="left")
+        self.log=ttk.Treeview(f,columns=("date","company","package","price","customer","phone","payment"),show="headings")
+        cols=[("date","التاريخ",145),("company","الشركة",100),("package","الباقة",180),("price","السعر",100),("customer","العميل",160),("phone","الهاتف",110),("payment","الدفع",80)]
+        for c,t,w in cols:self.log.heading(c,text=t);self.log.column(c,width=w,anchor="center")
+        self.log.pack(fill="both",expand=True)
+        ttk.Label(f,text="سجل إيداعات الرصيد (المبلغ وتاريخ الإيداع)",font=("Arial",13,"bold")).pack(anchor="e",pady=(14,5))
+        self.deposit_tree=ttk.Treeview(f,columns=("date","amount","notes"),show="headings",height=5)
+        for c,t,w in (("date","تاريخ الإيداع",190),("amount","المبلغ",150),("notes","ملاحظات",450)):
+            self.deposit_tree.heading(c,text=t);self.deposit_tree.column(c,width=w,anchor="center")
+        self.deposit_tree.pack(fill="x",expand=False)
+
+    def animate_ticker(self):
+        if hasattr(self, "ticker") and self.ticker.winfo_exists():
+            self.ticker.config(text=self.ticker_text[self.ticker_pos:] + self.ticker_text[:self.ticker_pos])
+            self.ticker_pos = (self.ticker_pos + 1) % len(self.ticker_text)
+            self.root.after(220, self.animate_ticker)
+
+    def add_deposit(self):
+        amount=simpledialog.askfloat("إيداع رصيد","أدخل مبلغ الإيداع بالريال:",parent=self.root,minvalue=1)
+        if amount is None:return
+        note=simpledialog.askstring("ملاحظات الإيداع","ملاحظة اختيارية (يمكن تركها فارغة):",parent=self.root) or ""
+        stamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.db.execute("INSERT INTO deposits(created_at,amount,notes) VALUES(?,?,?)",(stamp,amount,note))
+        self.set_balance(self.balance()+amount)
+        self.db.commit()
+        self.refresh()
+        messagebox.showinfo("تم الإيداع",f"تم إضافة {self.money(amount)} إلى الرصيد.\nتم تسجيل المبلغ وتاريخ ووقت الإيداع في سجل الإيداعات.")
+
+    def change_balance(self):
+        val=simpledialog.askfloat("الرصيد الأساسي","أدخل الرصيد الأساسي الحالي بالريال (للتصحيح فقط):",parent=self.root,minvalue=0)
+        if val is not None:
+            self.set_balance(val);self.db.commit();self.refresh_stats()
+
+    def load_choices(self):
+        rows=self.db.execute("SELECT * FROM packages WHERE company=? ORDER BY name",(self.company.get(),)).fetchall()
+        self.pkg_map={f"{r['name']} | {self.money(r['price']) if r['price']>0 else 'السعر غير محدد'}":r for r in rows}
+        self.pkg_box["values"]=list(self.pkg_map)
+        self.pkg.set("");self.price_lbl.config(text="السعر: —")
+
+    def show_price(self):
+        r=self.pkg_map.get(self.pkg.get())
+        if r:self.price_lbl.config(text=f"السعر: {self.money(r['price'])}" if r['price']>0 else "السعر غير محدد — أدخل السعر في الكتالوج")
+
+    def confirm(self):
+        r=self.pkg_map.get(self.pkg.get())
+        name=self.customer.get().strip(); phone=self.phone.get().strip()
+        if not r: messagebox.showerror("تنبيه","اختر باقة.");return
+        if float(r["price"])<=0: messagebox.showerror("السعر غير مؤكد","افتح كتالوج الباقات وحدد السعر الصحيح لهذه الباقة أولاً.");return
+        if len(name.split())<2: messagebox.showerror("الاسم","أدخل اسم العميل (يفضل الاسم الرباعي).");return
+        if not(phone.isdigit() and len(phone)==9):messagebox.showerror("رقم الهاتف","يجب إدخال 9 أرقام بالضبط.");return
+        price=float(r["price"])
+        if self.balance()<price:
+            messagebox.showerror("الرصيد غير كافٍ",f"الرصيد {self.money(self.balance())}، وسعر الباقة {self.money(price)}.");return
+        pay=self.payment.get()
+        if not messagebox.askyesno("تأكيد",f"الشركة: {self.company.get()}\nالباقة: {r['name']}\nالعميل: {name}\nالسعر: {self.money(price)}\nالدفع: {pay}\nسيتم خصم قيمة الباقة من الرصيد الأساسي. هل تؤكد؟"):return
+        self.db.execute("""INSERT INTO transactions(created_at,company,package_name,price,customer_name,phone,payment,notes)
+            VALUES(?,?,?,?,?,?,?,?)""",(datetime.now().strftime("%Y-%m-%d %H:%M"),self.company.get(),r["name"],price,name,phone,pay,self.notes.get()))
+        self.set_balance(self.balance()-price)
+        self.db.commit()
+        for v in (self.customer,self.phone,self.notes):v.set("")
+        self.refresh();messagebox.showinfo("تم بنجاح","تم تسجيل العملية وخصم قيمة الباقة وحفظها بشكل دائم.")
+
+    def package_dialog(self, row=None):
+        win=tk.Toplevel(self.root);win.title("بيانات الباقة");win.configure(bg=BG);win.transient(self.root);win.grab_set()
+        vals={}
+        fields=[("الشركة","company",COMPANIES),("اسم الباقة","name",None),("السعر بالريال","price",None),("حجم الإنترنت","data",None),("دقائق داخل الشبكة","onnet",None),("دقائق كل الشبكات","allnet",None),("الرسائل","sms",None),("ملاحظات","notes",None)]
+        for i,(title,key,choices) in enumerate(fields):
+            ttk.Label(win,text=title).grid(row=i,column=0,padx=10,pady=7,sticky="e")
+            v=tk.StringVar(value=(str(row[key]) if row else (COMPANIES[0] if key=="company" else "")))
+            vals[key]=v
+            w=ttk.Combobox(win,textvariable=v,values=choices,state="readonly",width=30) if choices else ttk.Entry(win,textvariable=v,width=33,justify="right")
+            w.grid(row=i,column=1,padx=10,pady=7)
+        def save():
+            try:
+                price=float(vals["price"].get() or 0)
+                if not vals["name"].get().strip() or price<0:raise ValueError
+            except ValueError:messagebox.showerror("خطأ","أدخل اسم الباقة وسعراً صحيحاً.");return
+            data=[vals[k].get().strip() for k in ("company","name")]
+            data += [price]+[vals[k].get().strip() for k in ("data","onnet","allnet","sms","notes")]
+            if row:
+                self.db.execute("""UPDATE packages SET company=?,name=?,price=?,data=?,onnet=?,allnet=?,sms=?,notes=? WHERE id=?""",(*data,row["id"]))
+            else:
+                self.db.execute("""INSERT INTO packages(company,name,price,data,onnet,allnet,sms,notes) VALUES(?,?,?,?,?,?,?,?)""",data)
+            self.db.commit();win.destroy();self.refresh()
+        ttk.Button(win,text="حفظ",style="Accent.TButton",command=save).grid(row=8,column=0,columnspan=2,pady=12)
+
+    def edit_package(self):
+        sel=self.cat_tree.selection()
+        if not sel:return
+        row=self.db.execute("SELECT * FROM packages WHERE id=?",(int(sel[0]),)).fetchone()
+        if row:self.package_dialog(row)
+
+    def delete_package(self):
+        sel=self.cat_tree.selection()
+        if not sel:return
+        if messagebox.askyesno("تأكيد","هل تريد حذف الباقة المحددة؟"):
+            self.db.execute("DELETE FROM packages WHERE id=?",(int(sel[0]),));self.db.commit();self.refresh()
+
+    def delete_record(self):
+        sel=self.log.selection()
+        if not sel:return
+        row=self.db.execute("SELECT * FROM transactions WHERE id=?",(int(sel[0]),)).fetchone()
+        if row and messagebox.askyesno("تأكيد الحذف","سيتم حذف العملية وإعادة قيمتها إلى الرصيد الأساسي. متابعة؟"):
+            self.set_balance(self.balance()+float(row["price"]))
+            self.db.execute("DELETE FROM transactions WHERE id=?",(row["id"],));self.db.commit();self.refresh()
+
+    def refresh_catalog(self):
+        for x in self.cat_tree.get_children():self.cat_tree.delete(x)
+        company=self.filter_company.get()
+        q="SELECT * FROM packages"+(" WHERE company=?" if company!="الكل" else "")+" ORDER BY company,name"
+        rows=self.db.execute(q,(company,) if company!="الكل" else ()).fetchall()
+        for r in rows:
+            mins=" / ".join(x for x in (r["onnet"],r["allnet"]) if x)
+            self.cat_tree.insert("","end",iid=str(r["id"]),values=(r["company"],r["name"],self.money(r["price"]) if r["price"] else "غير محدد",r["data"],mins,r["sms"],r["notes"]))
+    def refresh_records(self):
+        for x in self.log.get_children():self.log.delete(x)
+        for r in self.db.execute("SELECT * FROM transactions ORDER BY id DESC"):
+            self.log.insert("","end",iid=str(r["id"]),values=(r["created_at"],r["company"],r["package_name"],self.money(r["price"]),r["customer_name"],r["phone"],r["payment"]))
+    def refresh_stats(self):
+        self.balance_card.config(text=self.money(self.balance()))
+        self.sales_card.config(text=str(self.db.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]))
+        self.debt_card.config(text=str(self.db.execute("SELECT COUNT(*) FROM transactions WHERE payment='دين'").fetchone()[0]))
+    def refresh(self):
+        self.refresh_stats();self.load_choices();self.refresh_catalog();self.refresh_records()
+    def close(self):
+        self.db.close();self.root.destroy()
+
+if __name__=="__main__":
+    root=tk.Tk();app=App(root);root.protocol("WM_DELETE_WINDOW",app.close);root.mainloop()
